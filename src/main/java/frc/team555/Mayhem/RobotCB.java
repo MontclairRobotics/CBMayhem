@@ -4,10 +4,17 @@ import com.ctre.phoenix.motorcontrol.FeedbackDevice;
 import edu.wpi.first.wpilibj.CounterBase;
 import edu.wpi.first.wpilibj.SPI;
 
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.team555.Mayhem.Behaviors.IntakeLiftBehavior;
 import frc.team555.Mayhem.Behaviors.MainLiftBehavior;
+import frc.team555.Mayhem.Controls.DriverControls;
+import frc.team555.Mayhem.Controls.OperatorControls;
 import frc.team555.Mayhem.Data.ControlData;
 import frc.team555.Mayhem.Data.RequestData;
+import frc.team555.Mayhem.Hardware.Drivetrain;
+import frc.team555.Mayhem.Hardware.Intake;
+import frc.team555.Mayhem.Hardware.IntakeLift;
+import frc.team555.Mayhem.Hardware.MainLift;
 import frc.team555.Mayhem.Mappers.OperatorMapper;
 import frc.team555.Mayhem.Mappers.SensorMapper;
 
@@ -29,42 +36,18 @@ import org.montclairrobotics.cyborg.utils.CBPIDErrorCorrection;
 
 public class RobotCB extends Cyborg {
 
-    // constants
-    // joystick ports
-    private final int driveStickID = 0;
-    private final int operatorStickID = 1;
+    private CBDeviceID pdb,
 
-    private CBDeviceID
-            // power dist board
-            pdb,
-
-    // driver controls
-    driveXAxis, driveYAxis, gyroLockButton,
-
-    // operator controls
-    operXAxis, operYAxis, shootCubeButton, intakeLiftUpButton, intakeLiftDownButton, mainLiftUpButton, mainLiftDownButton,
 
     //navx
-    navx,
+    navx;
 
-    // dt Motors
-    dtFrontLeftMotor, dtFrontRightMotor, dtBackLeftMotor, dtBackRightMotor,
-
-    // dt Encoders
-    dtLeftEncoder, dtRightEncoder,
-
-    //lift Motors
-    mainLiftMotorFront, mainLiftMotorBack, intakeLiftMotor,
-
-    // lift encoders
-    mainLiftEncoder, intakeLiftEncoder,
-
-    // lift limit switches
-    mainLiftLimit,
-
-    // intake motors
-    intakeLeftMotor, intakeRightMotor;
-
+    DriverControls driverControls;
+    OperatorControls operatorControls;
+    Drivetrain drivetrain;
+    Intake intake;
+    IntakeLift intakeLift;
+    MainLift mainLift;
 
     @Override
     public void cyborgInit() {
@@ -80,175 +63,25 @@ public class RobotCB extends Cyborg {
         CBHardwareAdapter ha = new CBHardwareAdapter(this);
         hardwareAdapter = ha;
 
-        pdb = ha.add(
-                new CBPDB()
-        );
+        pdb = ha.add(new CBPDB());
 
-        navx = ha.add(
-                new CBNavX(SPI.Port.kMXP)
-        );
+        navx = ha.add(new CBNavX(SPI.Port.kMXP));
 
-        // setup drivetrain
-        dtFrontLeftMotor = ha.add(
-                new CBTalonSRX(1)
-                        .setDeviceName("DriveTrain", "FrontLeft")
-                        .setPowerSource(pdb, 0)
-                        .setSpeedControllerFaultCriteria(
-                                new CBSpeedControllerFaultCriteria()
-                                        .setBasic(.1, 1, 30)
-                        )
-        );
-        dtFrontRightMotor = ha.add(
-                new CBTalonSRX(7)
-                        .setDeviceName("DriveTrain", "FrontRight")
-                        .setPowerSource(pdb, 1)
-                        .setSpeedControllerFaultCriteria(
-                                new CBSpeedControllerFaultCriteria()
-                                        .setBasic(.1, 1, 30)
-                        )
-        );
-        dtBackLeftMotor = ha.add(
-                new CBTalonSRX(3)
-                        .setDeviceName("DriveTrain", "BackLeft")
-                        .setPowerSource(pdb, 2)
-                        .setSpeedControllerFaultCriteria(
-                                new CBSpeedControllerFaultCriteria()
-                                        .setBasic(.1, 1, 30)
-                        )
-        );
-        dtBackRightMotor = ha.add(
-                new CBTalonSRX(8)
-                        .setDeviceName("DriveTrain", "BackRight")
-                        .setPowerSource(pdb, 3)
-                        .setSpeedControllerFaultCriteria(
-                                new CBSpeedControllerFaultCriteria()
-                                        .setBasic(.1, 1, 30)
-                        )
-        );
-        final double inchesPerTick = 96 / 4499;
-        dtLeftEncoder = ha.add(
-                new CBEncoder(1, 0, CounterBase.EncodingType.k4X, false, inchesPerTick)
-        );
-        dtRightEncoder = ha.add(
-                new CBEncoder(3, 2, CounterBase.EncodingType.k4X, false, inchesPerTick)
-        );
+        // Instantiate and Initialize
+        driverControls   = new DriverControls(ha);
+        operatorControls = new OperatorControls(ha);
+        drivetrain       = new Drivetrain(ha, pdb);
+        intake           = new Intake(ha, pdb);
+        intakeLift       = new IntakeLift(ha, pdb);
+        mainLift         = new MainLift(ha, pdb);
 
-
-        // setup main lift
-        mainLiftMotorFront = ha.add(
-                new CBTalonSRX(4)
-                        .setDeviceName("MainLift", "Front")
-                        .setPowerSource(pdb, 4)
-                        .setSpeedControllerFaultCriteria(
-                                new CBSpeedControllerFaultCriteria()
-                                        .setBasic(.1, 1, 20)
-                        )
-        );
-        mainLiftMotorBack = ha.add(
-                new CBTalonSRX(2)
-                        .setDeviceName("MainLift", "Back")
-                        .setPowerSource(pdb, 5)
-                        .setSpeedControllerFaultCriteria(
-                                new CBSpeedControllerFaultCriteria()
-                                        .setBasic(.1, 1, 20)
-                        )
-        );
-        mainLiftEncoder = ha.add(
-                new CBEncoder(4, 5, CounterBase.EncodingType.k4X, false, 1)
-        );
-        mainLiftLimit = ha.add(
-                new CBDigitalInput(9)
-        );
-
-
-        // setup intake lift
-        intakeLiftMotor = ha.add(
-                new CBTalonSRX(9)
-                        .setDeviceName("Intake", "LiftMotor")
-                        .setPowerSource(pdb, 6)
-                        .setSpeedControllerFaultCriteria(
-                                new CBSpeedControllerFaultCriteria()
-                                        .setBasic(.1, 1, 20)
-                        )
-        );
-        intakeLiftEncoder = ha.add(
-                new CBEncoder(intakeLiftMotor, FeedbackDevice.QuadEncoder, false, 1)
-        );
-
-
-        // setup intake motors
-        intakeLeftMotor = ha.add(
-                new CBTalonSRX(10)
-                        .setDeviceName( "Intake", "LeftMotor")
-                        .setPowerSource(pdb, 8)
-                        .setSpeedControllerFaultCriteria(
-                                new CBSpeedControllerFaultCriteria()
-                                        .setBasic(.1, 1, 30)
-                        )
-        );
-        intakeRightMotor = ha.add(
-                new CBTalonSRX(5)
-                        .setDeviceName("Intake", "RightMotor")
-                        .setPowerSource(pdb, 9)
-                        .setSpeedControllerFaultCriteria(
-                                new CBSpeedControllerFaultCriteria()
-                                        .setBasic(.1, 1, 30)
-                        )
-        );
-
-        // driver controls
-        driveXAxis = ha.add(
-                new CBAxis(driveStickID, 1)
-                        .setDeadzone(0.1)
-                        .setScale(-1.0)
-        );
-        driveYAxis = ha.add(
-                new CBAxis(driveStickID, 0)
-                        .setDeadzone(0.1)
-                        .setScale(-1.0)
-        );
-        gyroLockButton = hardwareAdapter.add(
-                new CBButton(driveStickID, 1)
-        );
-
-        // operator controls
-        operXAxis = hardwareAdapter.add(
-                new CBAxis(operatorStickID, 1)
-                        .setDeadzone(0.1)
-                        .setScale(-1.0)
-        );
-
-        operYAxis = hardwareAdapter.add(
-                new CBAxis(operatorStickID, 0)
-                        .setDeadzone(0.1)
-                        .setScale(-1.0)
-        );
-
-        shootCubeButton = ha.add(
-                new CBButton(operatorStickID, 1)
-        );
-        intakeLiftUpButton = ha.add(
-                new CBButton(operatorStickID, 3)
-        );
-        intakeLiftDownButton = ha.add(
-                new CBButton(operatorStickID, 2)
-        );
-        mainLiftUpButton = ha.add(
-                new CBButton(operatorStickID, 4)
-        );
-        mainLiftDownButton = ha.add(
-                new CBButton(operatorStickID, 5)
-        );
-
-        // setup teleop mappers
-        this.addTeleOpMapper(
-                new CBArcadeDriveMapper(this)
-                        .setAxes(driveYAxis, null, driveXAxis)
-                        // TODO: the following line commented because the mode above was changed to Power (from speed)
-                        // TODO: Tune Axis Scales
-                        //.setAxisScales(0, 40, 90) // no strafe, 40 inches/second, 90 degrees/second
-                        .setGyroLockButton(gyroLockButton)
-        );
+        // Run Setups functions
+        SmartDashboard.putBoolean("Driver Control Setup",driverControls.setup());
+        SmartDashboard.putBoolean("Operator Control Setup",operatorControls.setup());
+        SmartDashboard.putBoolean("Drivetrain Setup",drivetrain.setup());
+        SmartDashboard.putBoolean("Intake Setup",intake.setup());
+        SmartDashboard.putBoolean("Intake Lift Setup",intakeLift.setup());
+        SmartDashboard.putBoolean("Main Lift Setup", mainLift.setup());
 
         // Here is a hack:
         // create a second "drivetrain" to operate the intake
@@ -276,10 +109,10 @@ public class RobotCB extends Cyborg {
 
         this.addCustomMapper(
                 new CBMotorMonitorMapper(this)
-                        .add(dtFrontLeftMotor)
-                        .add(dtFrontRightMotor)
-                        .add(dtBackLeftMotor)
-                        .add(dtBackRightMotor)
+                        .add(drivetrain.getFrontLeftMotor())
+                        .add(drivetrain.getFrontRightMotor())
+                        .add(drivetrain.getBackLeftMotor())
+                        .add(drivetrain.getBackRightMotor())
                         .add(mainLiftMotorBack)
                         .add(mainLiftMotorFront)
                         .add(intakeLiftEncoder)
