@@ -3,13 +3,22 @@ package frc.team555.Mayhem.Hardware;
 import edu.wpi.first.wpilibj.CounterBase;
 import org.montclairrobotics.cyborg.CBHardwareAdapter;
 import org.montclairrobotics.cyborg.Cyborg;
+import org.montclairrobotics.cyborg.assemblies.CBDriveModule;
+import org.montclairrobotics.cyborg.assemblies.CBVictorArrayController;
+import org.montclairrobotics.cyborg.controllers.CBDifferentialDriveController;
 import org.montclairrobotics.cyborg.devices.CBDeviceID;
 import org.montclairrobotics.cyborg.devices.CBEncoder;
 import org.montclairrobotics.cyborg.devices.CBSpeedControllerFaultCriteria;
 import org.montclairrobotics.cyborg.devices.CBTalonSRX;
 import org.montclairrobotics.cyborg.mappers.CBArcadeDriveMapper;
+import org.montclairrobotics.cyborg.utils.CB2DVector;
+import org.montclairrobotics.cyborg.utils.CBEnums;
+import org.montclairrobotics.cyborg.utils.CBPIDErrorCorrection;
 
 public class Drivetrain {
+
+    // Declare Cyborg Robot Class
+    private Cyborg cyborg;
 
     // Declare Cyborg Hardware Adapter
     private CBHardwareAdapter hardwareAdapter;
@@ -30,7 +39,8 @@ public class Drivetrain {
     // Inches Per Tick For Encoders
     private final double INCHES_PER_TICK = 96 / 4499;
 
-    public Drivetrain(CBHardwareAdapter hardwareAdapter, CBDeviceID pdb){
+    public Drivetrain(Cyborg cyborg,CBHardwareAdapter hardwareAdapter, CBDeviceID pdb){
+        this.cyborg = cyborg;
         this.hardwareAdapter = hardwareAdapter;
         this.pdb = pdb;
     }
@@ -79,6 +89,42 @@ public class Drivetrain {
 
         leftEncoder = hardwareAdapter.add(new CBEncoder(1, 0, CounterBase.EncodingType.k4X, false, INCHES_PER_TICK));
         rightEncoder = hardwareAdapter.add(new CBEncoder(3, 2, CounterBase.EncodingType.k4X, false, INCHES_PER_TICK));
+
+        // setup robot controllers
+        cyborg.addRobotController(
+                new CBDifferentialDriveController(cyborg)
+                        .addLeftDriveModule(
+                                new CBDriveModule(
+                                        new CB2DVector(-1, 0), 0)
+                                        .addSpeedControllerArray(
+                                                new CBVictorArrayController()
+                                                        .setDriveMode(CBEnums.CBDriveMode.Power)
+                                                        .addSpeedController(frontLeftMotor)
+                                                        .addSpeedController(backLeftMotor)
+                                                        .setEncoder(leftEncoder)
+                                                        .setErrorCorrection(
+                                                                new CBPIDErrorCorrection()
+                                                                        .setConstants(new double[]{1.5, 0, 0.0015}
+                                                                        )
+                                                        )
+                                        )
+                        )
+                        .addRightDriveModule(
+                                new CBDriveModule(new CB2DVector(1, 0), 180)
+                                        .addSpeedControllerArray(
+                                                new CBVictorArrayController()
+                                                        .setDriveMode(CBEnums.CBDriveMode.Power)
+                                                        .addSpeedController(frontRightMotor)
+                                                        .addSpeedController(backRightMotor)
+                                                        .setEncoder(rightEncoder)
+                                                        .setErrorCorrection(
+                                                                new CBPIDErrorCorrection()
+                                                                        .setConstants(new double[]{1.5, 0, 0.0015}
+                                                                        )
+                                                        )
+                                        )
+                        )
+        );
 
         return true;
     }

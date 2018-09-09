@@ -1,16 +1,28 @@
 package frc.team555.Mayhem.Hardware;
 
-import com.ctre.phoenix.motorcontrol.FeedbackDevice;
 import edu.wpi.first.wpilibj.CounterBase;
+import frc.team555.Mayhem.Data.ControlData;
 import org.montclairrobotics.cyborg.CBHardwareAdapter;
+import org.montclairrobotics.cyborg.Cyborg;
+import org.montclairrobotics.cyborg.assemblies.CBVictorArrayController;
+import org.montclairrobotics.cyborg.controllers.CBLiftController;
+import org.montclairrobotics.cyborg.data.CBControlData;
 import org.montclairrobotics.cyborg.devices.*;
+import org.montclairrobotics.cyborg.utils.CBEnums;
 
 public class MainLift {
+
+    // Declare Cyborg Robot Class
+    private Cyborg cyborg;
+
     // Declare Cyborg Hardware Adapter
     private CBHardwareAdapter hardwareAdapter;
 
     // Declare Power Distribution Board
     private CBDeviceID pdb;
+
+    // Data for Mappers
+    private CBControlData controlData;
 
     // Declare Motors
     private CBDeviceID frontMotor;
@@ -22,9 +34,11 @@ public class MainLift {
     // Declare Limit Switch
     private CBDeviceID limitSwitch;
 
-    public MainLift(CBHardwareAdapter hardwareAdapter, CBDeviceID pdb){
+    public MainLift(Cyborg cyborg, CBHardwareAdapter hardwareAdapter, CBDeviceID pdb, CBControlData controlData){
+        this.cyborg = cyborg;
         this.hardwareAdapter = hardwareAdapter;
         this.pdb = pdb;
+        this.controlData = controlData;
     }
 
     public boolean setup(){
@@ -54,6 +68,29 @@ public class MainLift {
         );
 
         limitSwitch = hardwareAdapter.add(new CBDigitalInput(9));
+
+        // main lift controller definition
+        cyborg.addRobotController(
+                // hardware configurations are done here.
+                // there are other "soft" configurations done in the mapper
+                // that include margins (which trigger slow motion)
+                // and in this case a encoder based top limit
+                new CBLiftController(cyborg)
+                        // setData allows you to pick a CBLinearControllerData variable
+                        // in controlData to use for this lift. There might be several
+                        // lift controllers and each one would be controlled by a different
+                        // CBLinearControllerData object in controlData.
+                        .setControlData(((ControlData) controlData).mainLift)
+                        // set a lower limit switch this is a hard limit
+                        .setBottomLimit(limitSwitch)
+                        // set the encoder for the lift
+                        .setEncoder(encoder)
+                        // attach a speed controller array to drive the lift
+                        .setSpeedControllerArray(new CBVictorArrayController()
+                                .addSpeedController(frontMotor)
+                                .setDriveMode(CBEnums.CBDriveMode.Power)
+                        )
+        );
 
         return true;
     }
